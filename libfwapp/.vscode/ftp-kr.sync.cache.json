@@ -1,0 +1,256 @@
+{
+  "ftp://192.168.1.119:21@root": {
+    "home": {
+      "libfwapp": {
+        "libfwapp": {
+          "doc": {
+            "readme.md": {
+              "type": "-",
+              "size": 1118,
+              "lmtime": 1547191232013,
+              "modified": false
+            }
+          },
+          "include": {
+            "fwapi.h": {
+              "type": "-",
+              "size": 1218,
+              "lmtime": 1547208475363,
+              "modified": false
+            },
+            "fwd_curl.h": {
+              "type": "-",
+              "size": 404,
+              "lmtime": 1547179810578,
+              "modified": false
+            },
+            "fwd_go.h": {
+              "type": "-",
+              "size": 912,
+              "lmtime": 1547192270382,
+              "modified": false
+            },
+            "fwdriver.h": {
+              "type": "-",
+              "size": 370,
+              "lmtime": 1546915266640,
+              "modified": false
+            },
+            "fwdriverfactory.h": {
+              "type": "-",
+              "size": 725,
+              "lmtime": 1547179826714,
+              "modified": false
+            },
+            "libfwapp_go.h": {
+              "type": "-",
+              "size": 1672,
+              "lmtime": 1547127312427,
+              "modified": false
+            }
+          },
+          "lib": {
+            "libfwapp.dll": {
+              "type": "-",
+              "size": 44032,
+              "lmtime": 1547202527071,
+              "modified": false
+            },
+            "libfwapp.so": {
+              "type": "-",
+              "size": 28352,
+              "lmtime": 1547202527083,
+              "modified": false
+            },
+            "libfwapp_go-config.json": {
+              "type": "-",
+              "size": 1192,
+              "lmtime": 1547201893080,
+              "modified": false
+            },
+            "libfwapp_go.dll": {
+              "type": "-",
+              "size": 6323727,
+              "lmtime": 1547202389784,
+              "modified": false
+            },
+            "libfwapp_go.h": {
+              "type": "-",
+              "size": 1672,
+              "lmtime": 1547201893098,
+              "modified": false
+            },
+            "libfwapp_go.so": {
+              "type": "-",
+              "size": 7796984,
+              "lmtime": 1547201893547,
+              "modified": false
+            }
+          },
+          "prj_linux64": {
+            "Makefile": {
+              "type": "-",
+              "size": 1103,
+              "lmtime": 1547208510305,
+              "modified": false
+            },
+            "libfwapp.so": {
+              "type": "-",
+              "size": 28352,
+              "lmtime": 0,
+              "modified": false
+            }
+          },
+          "prj_win32": {
+            "ibfwapptest.sln": {
+              "type": "-",
+              "size": 1242,
+              "lmtime": 1547186255581,
+              "modified": false
+            },
+            "ibfwapptest.suo": {
+              "type": "-",
+              "size": 8192,
+              "lmtime": 1547186950087,
+              "modified": false
+            },
+            "libfwapp.vcxproj": {
+              "type": "-",
+              "size": 8040,
+              "lmtime": 1547185522833,
+              "modified": false
+            }
+          },
+          "source": {
+            "fwapi.cpp": {
+              "type": "-",
+              "size": 2541,
+              "lmtime": 1547179707837,
+              "modified": false
+            },
+            "fwapi.o": {
+              "type": "-",
+              "size": 16488,
+              "lmtime": 0,
+              "modified": false
+            },
+            "fwd_curl.cpp": {
+              "type": "-",
+              "size": 271,
+              "lmtime": 1547181010019,
+              "modified": false
+            },
+            "fwd_curl.o": {
+              "type": "-",
+              "size": 11648,
+              "lmtime": 0,
+              "modified": false
+            },
+            "fwd_go.cpp": {
+              "type": "-",
+              "size": 2634,
+              "lmtime": 1547192282654,
+              "modified": false
+            },
+            "fwd_go.o": {
+              "type": "-",
+              "size": 14944,
+              "lmtime": 0,
+              "modified": true
+            }
+          },
+          "test": {}
+        },
+        "libfwapptest": {
+          "Makefile": {
+            "type": "-",
+            "size": 451,
+            "lmtime": 1547197814708,
+            "modified": false
+          },
+          "fwserver-config.json": {
+            "type": "-",
+            "size": 1192,
+            "lmtime": 1547129795691,
+            "modified": false
+          },
+          "pic": {
+            "1.bmp": {
+              "type": "-",
+              "size": 1499933,
+              "lmtime": 1504085619830,
+              "modified": false
+            },
+            "1.jpg": {
+              "type": "-",
+              "size": 776854,
+              "lmtime": 1546948326962,
+              "modified": false
+            },
+            "1.txt": {
+              "type": "-",
+              "size": 167,
+              "lmtime": 1546948393371,
+              "modified": false
+            },
+            "2.bmp": {
+              "type": "-",
+              "size": 841367,
+              "lmtime": 1545905239634,
+              "modified": false
+            },
+            "2.jpg": {
+              "type": "-",
+              "size": 841087,
+              "lmtime": 1546948341007,
+              "modified": false
+            },
+            "2.txt": {
+              "type": "-",
+              "size": 215,
+              "lmtime": 1546948396043,
+              "modified": false
+            },
+            "3.bmp": {
+              "type": "-",
+              "size": 17209414,
+              "lmtime": 1545817612921,
+              "modified": false
+            },
+            "3.jpg": {
+              "type": "-",
+              "size": 3652999,
+              "lmtime": 1545817501037,
+              "modified": false
+            },
+            "3.txt": {
+              "type": "-",
+              "size": 270,
+              "lmtime": 1546948397219,
+              "modified": false
+            }
+          },
+          "test.cpp": {
+            "type": "-",
+            "size": 5087,
+            "lmtime": 1547194467616,
+            "modified": false
+          },
+          "test.o": {
+            "type": "-",
+            "size": 43640,
+            "lmtime": 0,
+            "modified": false
+          }
+        },
+        "说明.txt": {
+          "type": "-",
+          "size": 119,
+          "lmtime": 1547198279075,
+          "modified": false
+        }
+      }
+    }
+  },
+  "$version": 1
+}

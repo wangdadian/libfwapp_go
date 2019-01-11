@@ -1,0 +1,15 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+    ],
+    "settings": {
+        "files.associations": {
+            "type_traits": "cpp"
+        },
+        "gotoSymbolStack.currentStackPosition": 0,
+        "gotoSymbolStack.maxStackPosition": 0,
+        "gotoSymbolStack.filePositionInfo": []
+    }
+}
