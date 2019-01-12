@@ -378,6 +378,15 @@ func (self *DiskStorage) Next() (*fwsdef.EDItem, error) {
 }
 
 func (self *DiskStorage) readFile(key int64, szFile string) (*fwsdef.EDItem, error) {
+	fi, err := os.Stat(szFile)
+	if err != nil {
+		return nil, err
+	}
+	tModTime := fi.ModTime()
+	tNow := time.Now()
+	if int(tNow.Sub(tModTime).Seconds()) > MAX_EDFILE_KEEP_DAYS*24*3600 {
+		return nil, fmt.Errorf("file[%s] has lasted more than %d days, no need to send.", szFile, MAX_EDFILE_KEEP_DAYS)
+	}
 	file, err := os.Open(szFile)
 	if err != nil {
 		gLog.Errorf("os.Open file [%s] failed: %s", szFile, err.Error())
@@ -528,6 +537,8 @@ func (self *DiskStorage) storageManager() error {
 	iMaxSize := fwsconf.GetFPicStorMaxMB()
 	// 获取总使用容量,MB
 	var fTotalSize float64
+	tModTime := time.Now()
+	tNow := time.Now()
 	for _, fi := range fiList {
 		// 目录或者文件过小，跳过
 		if fi.IsDir() || fi.Size() <= 20 {
@@ -543,6 +554,21 @@ func (self *DiskStorage) storageManager() error {
 
 		// 判断是否为事件文件
 		if ok := isEventFile(szFile, iTime); !ok {
+			continue
+		}
+
+		// 删除超过MAX_EDFILE_KEEP_DAYS天的事件文件
+		tModTime = fi.ModTime()
+		if int(tNow.Sub(tModTime).Seconds()) > MAX_EDFILE_KEEP_DAYS*24*3600 {
+			gLog.Warnf("event data file[%s] has lasted more than %d days, need to remove.", szFile, MAX_EDFILE_KEEP_DAYS)
+			err = os.Remove(szFile)
+			if err != nil {
+				gLog.Errorf("remove event data file[%s] failed: %s", szFile, err.Error())
+				continue
+			} else {
+				gLog.Infof("remove event data file[%s] ok.", szFile)
+			}
+			// 继续下一个文件
 			continue
 		}
 

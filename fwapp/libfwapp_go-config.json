@@ -22,7 +22,7 @@
 
     "failure_pic_cache":{
         #发送失败，内存中保留的最大图片个数，超过限量则写入磁盘
-        "pic_items_max": 200
+        "pic_items_max": 1000
     },
     "failure_pic_storage":{
         #写入磁盘的图片数据路径,，需提供最后的路径斜线!!!
@@ -31,6 +31,6 @@
             "psp_windows": "c:\\fwserver\\pic\\"
         },
         #图片最大占用当前磁盘空间MB数
-        "pic_storage_max_mb": 1024
+        "pic_storage_max_mb": 4096
     }
 }

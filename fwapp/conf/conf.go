@@ -59,7 +59,9 @@ const (
 var gFwsConf fwsConfIntf = nil
 var gLog *golog.Logger = golog.New("Config")
 
-var NOSUP error = errors.New("unsupport extension of configuration file ")
+var (
+	NOSUP error = errors.New("unsupport extension of configuration file ")
+)
 
 func InitConf(szFile string) error {
 	// 根据文件名判断使用哪种配置驱动

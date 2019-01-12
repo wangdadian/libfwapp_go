@@ -5,6 +5,10 @@ import (
 	"libfwapp_go/fwapp/fwsdef"
 )
 
+const (
+	MAX_EDFILE_KEEP_DAYS = 60
+)
+
 // 日志模块
 var gLog *golog.Logger = golog.New("Storage")
 

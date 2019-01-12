@@ -28,6 +28,10 @@ var gLog *golog.Logger = golog.New("LogMgr")
 
 // 启动
 func Start() error {
+	if gLogMgr != nil {
+		gLog.Warnf("Log Manager has been Start, no need to start again.")
+		return nil
+	}
 	// 获取配置信息
 	gLogMgr = &logMgr{
 		path: fwsconf.GetLogFilePath(),
@@ -88,21 +92,22 @@ func logManager() error {
 		return err
 	}
 	// 判断文件时间是否需要删除
-	for _, file := range fList {
-		fi, err := os.Stat(file)
+	for _, szFile := range fList {
+		fi, err := os.Stat(szFile)
 		if err != nil {
 			continue
 		}
 		tModTime := fi.ModTime()
 		tNow := time.Now()
 		if int(tNow.Sub(tModTime).Seconds()) > gLogMgr.days*24*3600 {
+			gLog.Warnf("log file[%s] has lasted more than %d days, need to remove.", szFile, gLogMgr.days)
 			// 超过最大天数，则删除文件
-			err = os.Remove(file)
+			err = os.Remove(szFile)
 			if err != nil {
-				gLog.Errorf("remove log file failed: %s", err.Error())
+				gLog.Errorf("remove log file[%s] failed: %s", szFile, err.Error())
 				continue
 			} else {
-				gLog.Infof("remove log file[%s] ok.", file)
+				gLog.Infof("remove log file[%s] ok.", szFile)
 			}
 			// 继续下一个文件
 			continue
@@ -113,15 +118,15 @@ func logManager() error {
 		if int(tNow.Sub(tModTime).Seconds()) > 1*24*3600 {
 			// 压缩日志文件
 			// 已经压缩了，继续下一个文件
-			if strings.HasSuffix(file, ".zip") || strings.HasSuffix(file, ".gz") {
+			if strings.HasSuffix(szFile, ".zip") || strings.HasSuffix(szFile, ".gz") {
 				continue
 			}
-			destF, err := compressLog(file)
+			destF, err := compressLog(szFile)
 			if err != nil {
-				gLog.Errorf("compress log file[%s] failed: %s", file, err.Error())
+				gLog.Errorf("compress log file[%s] failed: %s", szFile, err.Error())
 				continue
 			}
-			gLog.Infof("compress log file[%s] to [%s] OK", file, destF)
+			gLog.Infof("compress log file[%s] to [%s] OK", szFile, destF)
 			// 更新压缩文件的更新时间，为日志文件的更新时间
 			// 当超过最大保留天数后，可以正常删除
 			err = os.Chtimes(destF, tModTime, tModTime)
@@ -130,11 +135,11 @@ func logManager() error {
 			}
 			gLog.Infof("change file[%s] modify time[%v] ok", destF, tModTime)
 			// 删除原日志文件
-			err = os.Remove(file)
+			err = os.Remove(szFile)
 			if err != nil {
-				gLog.Infof("after compress ok, remove log file[%s] failed: %s", file, err.Error())
+				gLog.Infof("after compress ok, remove log file[%s] failed: %s", szFile, err.Error())
 			}
-			gLog.Infof("after compress ok, remove log file[%s] ok", file)
+			gLog.Infof("after compress ok, remove log file[%s] ok", szFile)
 		}
 
 	}
@@ -177,7 +182,7 @@ func getFileListAtDir(path string) ([]string, error) {
 
 func compressLog(szFile string) (string, error) {
 	szDestFile := szFile
-	szDestFile, err := compress.Compress([]string{szFile}, szDestFile, compress.CT_TARGZ)
+	szDestFile, err := compress.Compress([]string{szFile}, szDestFile, compress.CT_AUTO)
 	if err != nil {
 		return "", err
 	}

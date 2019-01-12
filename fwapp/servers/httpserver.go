@@ -86,7 +86,7 @@ func (self *ServerHttp) Write(data *fwsdef.EventDataT) error {
 	strBoundary := mpWr.Boundary()
 	mpWr.Close()
 	pClient := &http.Client{
-		Timeout: 1000 * time.Millisecond,
+		Timeout: 2000 * time.Millisecond,
 	}
 	req, err := http.NewRequest("POST", self.Url, &bufRWer)
 	if err != nil {
@@ -95,13 +95,14 @@ func (self *ServerHttp) Write(data *fwsdef.EventDataT) error {
 	}
 	defer req.Body.Close()
 
-	ip, port, err := getInfoFromUrl(self.Url)
-	if err != nil {
-		gLog.Errorf("getInfoFromUrl failed: %s", err.Error())
-		return err
-	}
+	// ip, port, err := getInfoFromUrl(self.Url)
+	// if err != nil {
+	// 	gLog.Errorf("getInfoFromUrl failed: %s", err.Error())
+	// 	return err
+	// }
 
-	req.Header.Add("HOST", fmt.Sprintf("%s:%d", ip, port))
+	// req.Header.Add("HOST", fmt.Sprintf("%s:%d", ip, port))
+	req.Header.Add("HOST", req.Host)
 	req.Header.Add("Content-Type", "multipart/form-data; boundary="+strBoundary)
 	// gLog.Errorf("############  Do")
 	gLog.Infof("start to write to http server[%s]...", self.Url)
