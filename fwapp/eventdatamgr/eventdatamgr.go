@@ -55,7 +55,7 @@ func Add(ed *fwsdef.EventDataFromCT) error {
 		SvrsMap: make(map[int]svrs.ServerWriter),
 	}
 
-	// 为此单元新建默认的http服务器
+	// 为此事件单元新建默认的http服务器
 	ediSvrsMap, _ := pEDItem.SvrsMap.(map[int]svrs.ServerWriter)
 	for _, url := range ed.Urls {
 		key := getEDItemMapKey(pEDItem)
@@ -73,6 +73,7 @@ func Add(ed *fwsdef.EventDataFromCT) error {
 	// 收到的事件总数增1
 	gEDMgr.edStateNet.iEDCount += 1
 	// 收到的事件需发送总数增加
+	ediSvrsMap, _ = pEDItem.SvrsMap.(map[int]svrs.ServerWriter)
 	gEDMgr.edStateNet.iSendOKCount += len(ediSvrsMap)
 	return nil
 }
@@ -92,25 +93,27 @@ func processEDI(edi *fwsdef.EDItem) {
 	iMax := gEDMgr.ediGoNum.getCount()
 	iEDICIC := gEDMgr.ediCIC.getCount()
 	if iEDICIC < iMax {
-		// 目前并发数过大
+		// 目前并发池上有空余，扔进并发池处理
 		gEDMgr.cED <- edi
 		gLog.Infof("send event data to go routine OK")
 		return
 	}
 	gLog.Warnf("Current concurrent number %d >= %d, insert to write queue", iEDICIC, iMax)
-	// 并发量过大，则加入发送队列
+	// 并发池已满，则加入发送队列
 	gEDMgr.edisNet.Lock()
 	gEDMgr.edisNet.ediList[edi.Time] = edi
 	gEDMgr.edisNet.Unlock()
-	gLog.Infof("add event data to write queue OK")
+	// gLog.Infof("add event data to write queue OK")
 }
 
 // 停止模块服务
 func Stop() error {
+	// 停止服务
 	gEDMgr.bExit = true
+	// 等待服务停止
 	<-gEDMgr.cStartOverWait
 	close(gEDMgr.cStartOverWait)
-	// 将内存中的时间数据写入磁盘
+	// 将内存中的事件据写入磁盘
 	gLog.Infof("before event data manager service stop, write data to storage, count: %d", len(gEDMgr.edisNet.ediList))
 	for k, edi := range gEDMgr.edisNet.ediList {
 		err := writeToStorage(edi)
@@ -120,15 +123,21 @@ func Stop() error {
 			gLog.Infof("write to storage ok, event data time: %d", k)
 		}
 	}
+	// 停止存储管理服务
+	gEDMgr.pStorage.StopManager()
 	return nil
 }
 
+// 开启事件数据管理服务
 func Start() {
 	pStorage, err := stor.NewDiskStorage()
 	if err != nil {
 		gLog.Errorf("stor.NewDiskStorage failed: %s", err.Error())
 		pStorage = nil
 	}
+	// 开启存储管理服务器
+	pStorage.StartManager()
+
 	gEDMgr = &eventDataMgr{
 		ediGoNum: &CountT{n: fwsconf.GetFPicMaxInCache()},
 		edisNet: &ediListNetT{
@@ -143,11 +152,14 @@ func Start() {
 		cStartOverWait: make(chan bool),
 		pStorage:       pStorage,
 	}
+	// 启动相关服务
 	go thStart()
 }
+
 func thStart() {
 	var wg sync.WaitGroup
 	// 启动内存中允许最大数据量的事件个数go routine用于并发发送事件
+	// 并发池创建
 	iMax := gEDMgr.ediGoNum.getCount()
 	for i := 0; i < iMax; i++ {
 		wg.Add(1)
@@ -165,10 +177,10 @@ func thStart() {
 	gLog.Infof("Event Data Manager service start")
 
 	//
-	// 等待其发起的go routine结束，Stop调用后才会终结go routine
+	// 等待其发起的go routine结束，其实是在Stop的调用
 	//
 	wg.Wait()
-	gLog.Infof("Event Data Manager service stop")
+	gLog.Infof("Event Data Manager service stoped")
 
 	// 通知Stop结束接口，本routine结束
 	gEDMgr.cStartOverWait <- true
@@ -190,11 +202,11 @@ func thEDIWriteToServersMgr(wg *sync.WaitGroup) {
 		// 睡一会儿
 		time.Sleep(100 * time.Millisecond)
 		gEDMgr.edisNet.Lock()
-		// 记录加锁时间
+		// 记录加锁时间，用于避免锁住太久
 		tStart = time.Now()
 		iEDListLen = len(gEDMgr.edisNet.ediList)
 		if iEDListLen <= 0 {
-			//  数量不足
+			// 发送队列中没有待发送的事件数据，继续...
 			gEDMgr.edisNet.Unlock()
 			continue
 		}
@@ -245,6 +257,8 @@ func thEDIWriteToServersMgr(wg *sync.WaitGroup) {
 
 }
 
+// 并发池go routine
+// 负责处理事件数据的转发
 func thEDIWriteToServers(wg *sync.WaitGroup) {
 	defer wg.Done()
 	// 并发总数减少
@@ -257,6 +271,7 @@ func thEDIWriteToServers(wg *sync.WaitGroup) {
 		time.Sleep(1 * time.Millisecond)
 		select {
 		case pEDI = <-gEDMgr.cED: // 收到待处理的事件数据
+			// 并发数增1
 			gEDMgr.ediCIC.addCount(1)
 			break
 		default:
@@ -266,6 +281,7 @@ func thEDIWriteToServers(wg *sync.WaitGroup) {
 		// 收到数据，处理。。。
 		if pEDI == nil {
 			// 无效数据，继续接收
+			gEDMgr.ediCIC.addCount(-1)
 			continue
 		}
 		ediSvrsMap, ok := pEDI.SvrsMap.(map[int]svrs.ServerWriter)
@@ -273,6 +289,7 @@ func thEDIWriteToServers(wg *sync.WaitGroup) {
 			// 无效数据或者已发送完毕无需再次发送，删除后，继续下一个
 			gLog.Warnf("event data item has invalid member [edi=%v, type ok=%v, len(server)=%d], deleted", pEDI, ok, len(ediSvrsMap))
 			pEDI = nil
+			gEDMgr.ediCIC.addCount(-1)
 			continue
 		}
 		// 循环发送，多次失败写入硬盘
@@ -323,13 +340,15 @@ func thEDIReadFormStorage(wg *sync.WaitGroup) {
 		if gEDMgr.bExit {
 			return
 		}
-		// 睡一会儿
+		// 睡一大会儿
 		for i := 0; i < 100; i++ {
 			if gEDMgr.bExit {
 				return
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
+
+		// 初始化当前存储下的所有数据条目
 		iTotal, err := gEDMgr.pStorage.ReadAll()
 		if err != nil || iTotal <= 0 {
 			continue
@@ -357,11 +376,13 @@ func thEDIReadFormStorage(wg *sync.WaitGroup) {
 					pEDI = nil
 					break
 				}
+
 				// 没有全部发送成功
-				// 超过最大循环发送次数，下一个
+				// 超过最大循环发送次数，继续处理下一个事件
 				if i >= MAX_SEND_NUM {
 					break
 				}
+
 				// 等待下一次发送
 				for n := 0; n < 50; n++ {
 					if gEDMgr.bExit {
@@ -374,6 +395,8 @@ func thEDIReadFormStorage(wg *sync.WaitGroup) {
 	} // for {
 }
 
+// 新增事件时，获取事件的key值，用于存入map。
+// key值为当前unix时间纳秒数
 func getEDListMapKey() int64 {
 	var key int64
 	for {
@@ -390,6 +413,7 @@ func getEDListMapKey() int64 {
 	return key
 }
 
+// 为当前事件单元中的服务器map列表增加key值
 func getEDItemMapKey(edi *fwsdef.EDItem) int {
 	if edi == nil {
 		return -1
@@ -413,6 +437,7 @@ func getEDItemMapKey(edi *fwsdef.EDItem) int {
 	return key
 }
 
+// 判断是否超时
 func isLockTimeout(tStart time.Time) bool {
 	tNow := time.Now()
 	// 如果锁住超过预设最大毫秒数，则释放锁

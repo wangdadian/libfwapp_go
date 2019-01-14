@@ -81,18 +81,18 @@ func (self *DiskStorage) thStorageManager() {
 }
 
 // 每个 fwsdef.EDItem 数据单元写入一个文件，文件名称为事件接收事件的纳秒数
-// 所有4字节的整型数据采用网络模式的大端方式存储（方便不通平台转移），取出时需转换
+// 所有4字节的整型数据采用网络模式的大端方式存储（方便不同平台转移），取出时需转换
 // 文件格式如下
 /*
-| 4字节 |  // 文件名长度
-| 文件名|  // 文件名称
-| 4字节 |  // 描述文件信息长度
-| 4字节 |  // 图片数据大小
-| 4字节 |  // 多少个待发送的目标服务器，n个
-| 4字节 |  // 每个目标服务器的json信息（服务器结构体序列化后的信息），重复n个4字节
-| 描述信息  | // 描述信息字节流
-| 图片      | // 图片数据字节流
-| 服务器信息 | 重复n个服务器信息
+|    4字节   |   // 文件名长度
+|    文件名  |   // 文件名称
+|    4字节   |   // 描述文件信息长度
+|    4字节   |   // 图片数据大小
+|    4字节   |   // 多少个待发送的目标服务器，n个
+|    4字节   |   // 每个目标服务器的json信息（服务器结构体序列化后的信息），重复n个4字节
+|  描述信息  |   // 描述信息字节流
+|    图片    |   // 图片数据字节流
+| 服务器信息 |   // 重复n个服务器信息
 
 */
 // 写入本地磁盘
@@ -216,6 +216,9 @@ func (self *DiskStorage) Write(edi *fwsdef.EDItem) error {
 	gLog.Infof("create and write event data to file[%s] ok", szFile)
 	return nil
 }
+
+// 删除制定事件数据文件
+// ns-事件接收到的纳秒数（和文件同名）
 func (self *DiskStorage) Remove(ns int64) error {
 	szFile := self.pathPic + fmt.Sprintf("%d", ns)
 	err := os.Remove(szFile)
@@ -368,8 +371,7 @@ func (self *DiskStorage) Next() (*fwsdef.EDItem, error) {
 		self.iIndex += 1
 		pEDI, err = self.readFile(iTime, szFile)
 		if err == nil {
-			// 读取完毕，删除文件
-			gLog.Warnf("read event data file [%s] ok.", szFile)
+			// 读取完毕
 			break
 		}
 	}
@@ -552,7 +554,7 @@ func (self *DiskStorage) storageManager() error {
 			continue
 		}
 
-		// 判断是否为事件文件
+		// 判断是否为事件文件，略过非事件数据文件
 		if ok := isEventFile(szFile, iTime); !ok {
 			continue
 		}
@@ -587,11 +589,11 @@ func (self *DiskStorage) storageManager() error {
 	}
 
 	//
-	// 超额：删除最旧文件，删除量为 20%
+	// 超额：删除最旧文件，删除量为 25%
 	//
 	gLog.Infof("event data file total size=%d > %d MB, now to delete some oldest files.", iTotalSize, iMaxSize)
 	// 删除大小MB,目标值
-	fToDeleteSize := fTotalSize * 0.2
+	fToDeleteSize := fTotalSize * 0.25
 	// 已删除的大小
 	var fDeletedSize float64 = 0.0
 	// 按照时间顺序排序，然后顺序删除

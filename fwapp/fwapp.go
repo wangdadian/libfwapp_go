@@ -13,6 +13,12 @@ import (
 	"time"
 )
 
+//
+// ******************************************************************************
+// *********************   不要修改函数前的export注释   ***************************
+// ******************************************************************************
+//
+
 var gLog *golog.Logger = golog.New("FWAPP")
 
 // 退出信号
@@ -129,13 +135,14 @@ func FWGO_Influx(byDesc []byte, uiDescLen uint32, byPic []byte, uiPicLen uint32,
 		},
 		Urls: urls,
 	}
+
+	// 扔给数据管理模块处理
 	edmgr.Add(ed)
 	return 0
 }
 
 //export FWGO_Cleanup
 func FWGO_Cleanup() int32 {
-
 	// 停止日志管理模块
 	logmgr.Stop()
 	// 关闭数据管理模块

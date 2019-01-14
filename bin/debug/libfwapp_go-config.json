@@ -1,0 +1,36 @@
+# 配置数据为json格式，可以使用"#开头"的方式进行添加注释
+# 如果增加了注释，只能通过自定义json配置文件接口（dadian/jsonconf）读取，其他方式读取会失败。
+
+{
+    "network":{
+        #监听端口
+        "listen_port": 1282
+    },
+    "log":{
+        #是否输出至终端
+        "to_stdout": true,
+        #是否写入到日志文件
+        "to_file": true,
+        #日志文件保存路径，需提供最后的路径斜线!!!
+        "to_file_path": {
+            "tfp_linux": "/tmp/fwserver/log/",
+            "tfp_windows": "c:\\fwserver\\log\\"
+        },
+        #日志文件最大保留天数
+        "to_file_keep_days": 15
+    },
+
+    "failure_pic_cache":{
+        #发送失败，内存中保留的最大图片个数，超过限量则写入磁盘
+        "pic_items_max": 1000
+    },
+    "failure_pic_storage":{
+        #写入磁盘的图片数据路径,，需提供最后的路径斜线!!!
+        "pic_storage_path": {
+            "psp_linux": "/tmp/fwserver/pic/",
+            "psp_windows": "c:\\fwserver\\pic\\"
+        },
+        #图片最大占用当前磁盘空间MB数
+        "pic_storage_max_mb": 4096
+    }
+}
