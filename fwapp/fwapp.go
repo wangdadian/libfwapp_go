@@ -13,21 +13,15 @@ import (
 	"time"
 )
 
-//
-// ******************************************************************************
-// *********************   不要修改函数前的export注释   ***************************
-// ******************************************************************************
-//
-
 var gLog *golog.Logger = golog.New("FWAPP")
 
 // 退出信号
-var gbExit bool = false
+var gchExit chan bool
 
 func init() {
 	iCpu := runtime.NumCPU()
 	runtime.GOMAXPROCS(iCpu)
-	gbExit = false
+	gchExit = make(chan bool)
 }
 
 // 日志文件每天一个，自动进行更替
@@ -60,8 +54,10 @@ func logJob() {
 	gLog.Infof("new log file[%s]", szFile)
 	// 定时每天记录新文件
 	for {
-		if gbExit {
-			break
+		select {
+		case <-gchExit:
+			goto goto_ret
+		default:
 		}
 		tNow = time.Now()
 		if tNow.Day() != tLast.Day() {
@@ -74,7 +70,14 @@ func logJob() {
 
 		time.Sleep(500 * time.Millisecond)
 	}
+goto_ret:
 }
+
+//
+// ******************************************************************************
+// *********************   不要修改函数前的export注释   ***************************
+// ******************************************************************************
+//
 
 func main() {}
 
@@ -104,30 +107,45 @@ func FWGO_Init() int32 {
 
 //export FWGO_Influx
 func FWGO_Influx(byDesc []byte, uiDescLen uint32, byPic []byte, uiPicLen uint32, byUrls []byte, uiUrlLen uint32) int32 {
-	gLog.Infof("byDesc bytes length=%d, uiDescLen=%d\n", len(byDesc), uiDescLen)
-	gLog.Infof("byPic bytes length=%d, uiPicLen=%d\n", len(byPic), uiPicLen)
-	gLog.Infof("byUrls bytes length=%d, uiUrlLen=%d\n", len(byUrls), uiUrlLen)
+	gLog.Infof("####FWGO_Influx get event data:")
+	gLog.Infof("    byDesc bytes length=%d, uiDescLen=%d\n", len(byDesc), uiDescLen)
+	gLog.Infof("    byPic bytes length=%d, uiPicLen=%d\n", len(byPic), uiPicLen)
+	gLog.Infof("    byUrls bytes length=%d, uiUrlLen=%d\n", len(byUrls), uiUrlLen)
 
-	// 复制数据
-	byDescNew := make([]byte, uiDescLen)
-	copy(byDescNew, byDesc)
-	byPicNew := make([]byte, uiPicLen)
-	copy(byPicNew, byPic)
-	byUrlsNew := make([]byte, uiUrlLen)
-	copy(byUrlsNew, byUrls)
-
-	var urls []string = nil // url列表
 	var err error
+
+	//
+	// 复制数据
+	//
+
+	// 描述信息
+	var byDescNew []byte = nil
+	if uiDescLen > 0 {
+		byDescNew = make([]byte, uiDescLen)
+		copy(byDescNew, byDesc)
+	}
+
+	// 图片数据
+	var byPicNew []byte = nil
+	if uiPicLen > 0 {
+		byPicNew = make([]byte, uiPicLen)
+		copy(byPicNew, byPic)
+	}
+
 	// url列表
+	var byUrlsNew []byte = nil
+	var urls []string = nil
 	if uiUrlLen > 0 {
+		byUrlsNew = make([]byte, uiUrlLen)
+		copy(byUrlsNew, byUrls)
+		// url列表取出
 		urls, err = fwsdef.GetUrlsFromBytes(byUrlsNew)
 		if err != nil {
 			gLog.Errorf("fwsdef.GetUrlsFromBytes failed: %s, invalid urls data", err.Error())
 			return -1
 		}
-	} else {
-		urls = nil
 	}
+
 	var ed *fwsdef.EventDataFromCT = &fwsdef.EventDataFromCT{
 		ED: &fwsdef.EventDataT{
 			DescBuf: byDescNew,
@@ -143,14 +161,24 @@ func FWGO_Influx(byDesc []byte, uiDescLen uint32, byPic []byte, uiPicLen uint32,
 
 //export FWGO_Cleanup
 func FWGO_Cleanup() int32 {
+	// 关闭本模块启动的协程
+	if ok := fwsconf.IsLogToFile(); ok == true {
+		gchExit <- true
+	}
+
 	// 停止日志管理模块
 	logmgr.Stop()
+
 	// 关闭数据管理模块
 	edmgr.Stop()
 
-	gLog.Infof("#### fwapp exit ####")
+	gLog.Infof("to be close log file.")
 	// 关闭日志输出
 	golog.Close(".", nil)
+
+	time.Sleep(500 * time.Millisecond)
+
+	gLog.Infof("#### fwapp exit ####")
 	return 0
 }
 

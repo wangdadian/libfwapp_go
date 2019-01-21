@@ -24,9 +24,9 @@
 
 ​		会在/bin目录下生成so文件
 
-​		使用此so文件时，#include 此目录下的.h头文件即可，并在编译时，指定动态库连接：
+​		使用此so文件时，#include 此目录下的.h头文件即可，并在编译时，指定动态库链接：
 
-​		gcc/g++    ……    -lfwapp_go -lpthread
+​		gcc/g++    ……    <font face="微软雅黑" size=5 style="color:red">**-lfwapp_go  -lpthread**</font>
 
 
 

@@ -20,6 +20,7 @@ type DiskStorage struct {
 	iKeyFilesArr []int64 // 存储路径下的文件列表，文件名是事件时间纳秒数，和事件时间相同
 	iIndex       int     // 索引值，指向iKeyFile的位置
 	bExit        bool
+	cWaitExit    chan bool // 等待线程结束
 }
 
 //
@@ -50,6 +51,7 @@ func NewDiskStorage() (*DiskStorage, error) {
 		iKeyFilesArr: nil,
 		iIndex:       0,
 		bExit:        false,
+		cWaitExit:    make(chan bool),
 	}
 
 	return gDiskStorage, nil
@@ -63,21 +65,24 @@ func (self *DiskStorage) StartManager() error {
 
 // 关闭管理服务
 func (self *DiskStorage) StopManager() {
-	self.bExit = false
+	self.bExit = true
+	<-self.cWaitExit
 }
 func (self *DiskStorage) thStorageManager() {
 	for {
 		if self.bExit {
-			return
+			goto goto_ret
 		}
 		for i := 0; i < 300; i++ {
 			if self.bExit {
-				return
+				goto goto_ret
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
 		self.storageManager()
 	}
+goto_ret:
+	self.cWaitExit <- true
 }
 
 // 每个 fwsdef.EDItem 数据单元写入一个文件，文件名称为事件接收事件的纳秒数
@@ -85,7 +90,7 @@ func (self *DiskStorage) thStorageManager() {
 // 文件格式如下
 /*
 |    4字节   |   // 文件名长度
-|    文件名  |   // 文件名称
+|    文件名  |   // 文件名称，不含路径
 |    4字节   |   // 描述文件信息长度
 |    4字节   |   // 图片数据大小
 |    4字节   |   // 多少个待发送的目标服务器，n个
@@ -120,19 +125,22 @@ func (self *DiskStorage) Write(edi *fwsdef.EDItem) error {
 		gLog.Errorf("Create file[%s] faiiled: %s", szFile, err.Error())
 		return err
 	}
+
+	// return前延迟执行
 	defer func() {
 		file.Close()
 		// 接口执行中，出现错误，删除文件
 		if err != nil {
-			gLog.Errorf("delete file[%s], because of a error occoured.", file.Name())
+			gLog.Errorf("delete file[%s], because of an error occured during write data to file.", file.Name())
 			os.Remove(szFileName)
 		}
 	}()
+
 	iFileNameLen := len(szFileName)
 	iDescLen := len(edi.Data.DescBuf)
 	iPicLen := len(edi.Data.PicBuf)
 	iServersCount := len(ediSvrsMap)
-	var bySvrs [][]byte
+	var bySvrs [][]byte // 服务器信息序列化后数据
 	for _, v := range ediSvrsMap {
 		bySvr, err := json.Marshal(v)
 		if err != nil {
@@ -194,16 +202,21 @@ func (self *DiskStorage) Write(edi *fwsdef.EDItem) error {
 		}
 	}
 	// 描述信息字节流
-	_, err = file.Write(edi.Data.DescBuf)
-	if err != nil {
-		gLog.Errorf("Write file[%s] failed: %s", szFile, err.Error())
-		return err
+	if len(edi.Data.DescBuf) > 0 {
+		_, err = file.Write(edi.Data.DescBuf)
+		if err != nil {
+			gLog.Errorf("Write file[%s] failed: %s", szFile, err.Error())
+			return err
+		}
 	}
+
 	// 图片数据字节流
-	_, err = file.Write(edi.Data.PicBuf)
-	if err != nil {
-		gLog.Errorf("Write file[%s] failed: %s", szFile, err.Error())
-		return err
+	if len(edi.Data.PicBuf) > 0 {
+		_, err = file.Write(edi.Data.PicBuf)
+		if err != nil {
+			gLog.Errorf("Write file[%s] failed: %s", szFile, err.Error())
+			return err
+		}
 	}
 	// 每个服务器的序列化字节流
 	for _, bs := range bySvrs {
@@ -404,6 +417,7 @@ func (self *DiskStorage) readFile(key int64, szFile string) (*fwsdef.EDItem, err
 	}
 	iFileNameLen, _ := endian.BytesToInt(byRdBuf[:4], true)
 	iFileNameLen = int(endian.NTOHL(uint32(iFileNameLen)))
+
 	// 读取文件名称
 	_, err = file.Read(byRdBuf[:iFileNameLen])
 	if err != nil && err != io.EOF {
@@ -443,6 +457,7 @@ func (self *DiskStorage) readFile(key int64, szFile string) (*fwsdef.EDItem, err
 	}
 	iServersCount, _ := endian.BytesToInt(byRdBuf[:4], true)
 	iServersCount = int(endian.NTOHL(uint32(iServersCount)))
+
 	// 读取每个服务器的序列化信息长度
 	var arrSvrsInfoLen []int
 	for j := 0; j < iServersCount; j++ {
@@ -455,24 +470,35 @@ func (self *DiskStorage) readFile(key int64, szFile string) (*fwsdef.EDItem, err
 		infoLen = int(endian.NTOHL(uint32(infoLen)))
 		arrSvrsInfoLen = append(arrSvrsInfoLen, infoLen)
 	}
+
+	// 储存事件数据
 	var ed fwsdef.EventDataT
+
 	// 读取描述信息字节流
-	descBuf := make([]byte, iDescLen)
-	_, err = file.Read(descBuf)
-	if err != nil && err != io.EOF {
-		gLog.Errorf("Read file[%s] failed: %s", file.Name(), err.Error())
-		return nil, err
+	var descBuf []byte = nil
+	if iDescLen > 0 {
+		descBuf := make([]byte, iDescLen)
+		_, err = file.Read(descBuf)
+		if err != nil && err != io.EOF {
+			gLog.Errorf("Read file[%s] failed: %s", file.Name(), err.Error())
+			return nil, err
+		}
 	}
 	ed.DescBuf = descBuf
 
 	// 读取图片信息字节流
-	picBuf := make([]byte, iPicLen)
-	_, err = file.Read(picBuf)
-	if err != nil && err != io.EOF {
-		gLog.Errorf("Read file[%s] failed: %s", file.Name(), err.Error())
-		return nil, err
+	var picBuf []byte = nil
+	if iPicLen > 0 {
+		picBuf := make([]byte, iPicLen)
+		_, err = file.Read(picBuf)
+		if err != nil && err != io.EOF {
+			gLog.Errorf("Read file[%s] failed: %s", file.Name(), err.Error())
+			return nil, err
+		}
 	}
 	ed.PicBuf = picBuf
+
+	// 事件单元信息
 	edi := fwsdef.EDItem{
 		Data:    &ed,
 		Time:    key,
@@ -542,8 +568,8 @@ func (self *DiskStorage) storageManager() error {
 	tModTime := time.Now()
 	tNow := time.Now()
 	for _, fi := range fiList {
-		// 目录或者文件过小，跳过
-		if fi.IsDir() || fi.Size() <= 20 {
+		// 跳过目录
+		if fi.IsDir() {
 			continue
 		}
 		// 解析文件名称出错，判定为非事件文件，跳过

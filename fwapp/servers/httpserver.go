@@ -9,9 +9,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
-	"net/url"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -48,6 +45,9 @@ func NewHttpServer(url string) (*ServerHttp, error) {
 func (self *ServerHttp) Write(data *fwsdef.EventDataT) error {
 	var bufRWer bytes.Buffer
 	mpWr := multipart.NewWriter(&bufRWer)
+
+	// 写入事件描述信息
+	// 内容头设置
 	h := make(textproto.MIMEHeader)
 	h.Set("Content-Disposition", "form-data; name=\"vehicle\";")
 	// h.Set("Content-Type", "text/plain")
@@ -56,38 +56,51 @@ func (self *ServerHttp) Write(data *fwsdef.EventDataT) error {
 		gLog.Errorf("mpWr.CreatePart(h)1 failed: %s", err)
 		return err
 	}
+	// 写入描述信息
 	n := 0
 	n, err = w.Write(data.DescBuf)
 	if err != nil {
 		gLog.Errorf("Write failed: %s", err.Error())
 		return err
 	}
+	// 判断写入字节数是否和实际相等，是否写入完成
 	if n != len(data.DescBuf) {
 		gLog.Errorf("Write failed: write len=%d != %d", n, len(data.DescBuf))
 		return fmt.Errorf("Write failed: write len=%d != %d", n, len(data.DescBuf))
 	}
-	h = make(textproto.MIMEHeader)
-	h.Set("Content-Disposition", "form-data; name=\"qjtp\";")
-	h.Set("Content-Type", "image/jpeg")
-	w, err = mpWr.CreatePart(h)
-	if err != nil {
-		gLog.Errorf("mpWr.CreatePart(h)1 failed: %s", err)
-		return err
+	gLog.Infof("Write Desc ok: write len=%d == %d", n, len(data.DescBuf))
+	// 如果有图片数据则写入图片数据
+	if len(data.PicBuf) > 0 {
+		h = make(textproto.MIMEHeader)
+		h.Set("Content-Disposition", "form-data; name=\"qjtp\";")
+		h.Set("Content-Type", "image/jpeg")
+		w, err = mpWr.CreatePart(h)
+		if err != nil {
+			gLog.Errorf("mpWr.CreatePart(h)1 failed: %s", err)
+			return err
+		}
+		n, err = w.Write(data.PicBuf)
+		if err != nil {
+			gLog.Errorf("Write failed: %s", err.Error())
+			return err
+		}
+		if n != len(data.PicBuf) {
+			gLog.Errorf("Write failed: writed len=%d != %d", n, len(data.PicBuf))
+			return fmt.Errorf("Write failed: writed len=%d != %d", n, len(data.PicBuf))
+		}
+		gLog.Infof("Write Pic ok: write len=%d == %d", n, len(data.PicBuf))
 	}
-	n, err = w.Write(data.PicBuf)
-	if err != nil {
-		gLog.Errorf("Write failed: %s", err.Error())
-		return err
-	}
-	if n != len(data.PicBuf) {
-		gLog.Errorf("Write failed: writed len=%d != %d", n, len(data.PicBuf))
-		return fmt.Errorf("Write failed: writed len=%d != %d", n, len(data.PicBuf))
-	}
+	// 保存边界字符串，用于设置请求头
 	strBoundary := mpWr.Boundary()
+	// 多部写入缓冲关闭，自动加入边界
 	mpWr.Close()
+
+	// 建立请求客户端，并设置2秒的超时临界值，避免阻塞
 	pClient := &http.Client{
 		Timeout: 2000 * time.Millisecond,
 	}
+
+	// 建立请求，并将缓冲区作为body
 	req, err := http.NewRequest("POST", self.Url, &bufRWer)
 	if err != nil {
 		gLog.Errorf("http.NewRequest failed: %s", err.Error())
@@ -95,17 +108,11 @@ func (self *ServerHttp) Write(data *fwsdef.EventDataT) error {
 	}
 	defer req.Body.Close()
 
-	// ip, port, err := getInfoFromUrl(self.Url)
-	// if err != nil {
-	// 	gLog.Errorf("getInfoFromUrl failed: %s", err.Error())
-	// 	return err
-	// }
-
-	// req.Header.Add("HOST", fmt.Sprintf("%s:%d", ip, port))
+	// 设置请求头部信息
 	req.Header.Add("HOST", req.Host)
 	req.Header.Add("Content-Type", "multipart/form-data; boundary="+strBoundary)
-	// gLog.Errorf("############  Do")
 	gLog.Infof("start to write to http server[%s]...", self.Url)
+	// 开始请求
 	res, err := pClient.Do(req)
 	if err != nil {
 		gLog.Errorf("http Client Do failed: %s", err.Error())
@@ -114,12 +121,14 @@ func (self *ServerHttp) Write(data *fwsdef.EventDataT) error {
 	defer res.Body.Close()
 
 	// gLog.Errorf("############  ReadAll")
+	// 读取对端返回信息，判断是否发送成功
 	byRetBody, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		gLog.Errorf("ioutil.ReadAll(res.Body) failed: %s", err.Error())
 		return err
 	}
 
+	// 收到返回消息，解析后判断是否发送成功
 	gLog.Infof("received message: %s", string(byRetBody))
 	retBody := RetBodyT{}
 	err = json.Unmarshal(byRetBody, &retBody)
@@ -131,39 +140,9 @@ func (self *ServerHttp) Write(data *fwsdef.EventDataT) error {
 		gLog.Errorf("http server[%s] return message, it's not ok:[%s] %s", self.Url, retBody.Code, retBody.Msg)
 		return fmt.Errorf("http server[%s] return message, it's not ok:[%s] %s", self.Url, retBody.Code, retBody.Msg)
 	}
+	// 发送成功
 	gLog.Infof("http server[%s] return message, it's ok", self.Url)
 	return nil
-}
-
-func getInfoFromUrl(szUrl string) (string, int, error) {
-	if len(szUrl) <= len("http://0.0.0.0") {
-		return "", -1, fmt.Errorf("invalid url")
-	}
-	u, err := url.Parse(szUrl)
-	if err != nil {
-		return "", -1, err
-	}
-	host := u.Host
-	ip := ""
-	port := 0
-	sIpPort := strings.Split(host, ":")
-	if len(sIpPort) == 1 {
-		ip = sIpPort[0]
-		port = 80
-	} else if len(sIpPort) == 2 {
-		ip = sIpPort[0]
-		port, err = strconv.Atoi(sIpPort[1])
-		if err != nil {
-			return "", -1, fmt.Errorf("parse ip:port failed: %s", err.Error())
-		}
-	} else {
-		return "", -1, fmt.Errorf("invalid url string")
-	}
-
-	if err != nil {
-		return "", -1, fmt.Errorf("parse ip:port failed: %s", err.Error())
-	}
-	return ip, port, nil
 }
 
 // //

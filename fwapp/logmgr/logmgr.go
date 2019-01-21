@@ -51,6 +51,7 @@ func Stop() {
 	gLogMgr.exit = true
 	<-gLogMgr.c
 	close(gLogMgr.c)
+	gLog.Infof("Log Manager stoped")
 }
 
 // 日志文件管理协程
@@ -68,9 +69,10 @@ func thLogManagerWorker() {
 			}
 			time.Sleep(200 * time.Millisecond)
 		}
+
 	}
-	gLog.Infof("thLogManagerWorker end")
 	gLogMgr.c <- true
+	gLog.Infof("thLogManagerWorker end")
 }
 
 func logManager() error {

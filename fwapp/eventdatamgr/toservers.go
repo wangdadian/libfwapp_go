@@ -12,6 +12,7 @@ func writeToServers(edi *fwsdef.EDItem) (int, int) {
 	ediSvrsMap, ok := edi.SvrsMap.(map[int]svrs.ServerWriter)
 	if edi == nil || ok == false || len(ediSvrsMap) <= 0 {
 		// 理论上不会进入
+		gLog.Errorf("edi == nil || ok == false || len(ediSvrsMap) <= 0")
 		return 0, 0
 	}
 
